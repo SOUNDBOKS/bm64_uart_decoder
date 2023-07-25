@@ -1,0 +1,13 @@
+{
+  "name": "BM64 UART",
+  "apiVersion": "1.0.0",
+  "author": "Joakim Langkilde",
+  "version": "0.1.0",
+  "description": "This analyzer will decode the BM64 Bluetooth module UART communication, consisting of communication in protocols such as HCI, ISDAP and the proprietary BM64 control protocol.",
+  "extensions": {
+    "BM64": {
+      "type": "HighLevelAnalyzer",
+      "entryPoint": "BM64.Hla"
+    }
+  }
+}
