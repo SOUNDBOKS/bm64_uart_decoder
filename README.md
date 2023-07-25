@@ -11,8 +11,10 @@
 
 ## Guide
 
-1. Load the extension through Logic "Extentions" -> "Load Existing Extension..."
+1. Load the extension through Logic `Extentions` -> `Load Existing Extension...`
 2. In the analyzers tab, you need to setup an "Async Serial" Analyzer to make the UART data available to this analyzer
 3. Then you add the BM64 Analyzer and through the configuration select the corresponding Async Serial analyzer link.
-4. You also need to select the direction "MCU -> BM64" or "BM64 -> MCU" as for some packets, commands and events are not distinguishable.
-5. Now you should see a channel in the view showing the commands and events recognized.
+4. You also need to select the direction `MCU -> BM64` or `BM64 -> MCU` as for some packets, commands and events are not distinguishable.
+   It is also an option to select `Autodetect` - this will look for either an HCI Event or a leading `0x00` before a BM64 package ( wakeup byte configurable on the BM64 ) to define the channel as RX or TX.
+   This is less reliable though.
+6. Now you should see a channel in the view showing the commands and events recognized.
