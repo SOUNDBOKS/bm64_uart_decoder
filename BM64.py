@@ -401,7 +401,7 @@ class Hla(HighLevelAnalyzer):
         if not self._packet:
             # This is the start of a new packet - determine the type based on the first byte
             packet_class = PACKETS.get(data[0], None)
-            print("data[0]: {} packet name: {}".format(data[0], packet_class.__class__.__name__))
+
             if not packet_class:
                 self._last_byte = data
                 return AnalyzerFrame('unknown', frame.start_time, frame.end_time, {})
