@@ -316,8 +316,37 @@ class BM64Packet(Packet):
                 'packet_length': length,
             })
 
+class BM64PacketWakeup(BM64Packet):
+    HEADER_FMT = ">BHB"
+    PKG_LENGTH_INDEX = 1
+    PKG_LENGTH_FMT = ">H"
+
+    def get_analyzer_frame(self, start_time, end_time, rx_channel):
+        # Readout info from header
+        garbage, length, event_code = self._header
+        event_str = f"Unknown Event"
+        # Check if we are configured to commands or events
+        if(rx_channel != True):
+            if event_code in BM64_COMMAND_DESC:
+                event_str = BM64_COMMAND_DESC[event_code]
+            return AnalyzerFrame('bm64', start_time, end_time, {
+                'packet_type': "BM64 Command",
+                'opcode': event_code,
+                'operation': event_str,
+                'packet_length': length,
+            })
+        else:
+            if event_code in BM64_EVENT_DESC:
+                event_str = BM64_EVENT_DESC[event_code]
+            return AnalyzerFrame('bm64', start_time, end_time, {
+                'packet_type': "BM64 Event",
+                'operation': event_str,
+                'packet_length': length,
+            })
+
 # Define all the supported packets by their type
 PACKETS = {
+    0x00: BM64PacketWakeup, # A bm64 package with wakeup b'0x00
     0x01: HCICommandPacket,
     0x02: HCIISDAPFlashPacket,
     0x04: HCIEventPacket,
@@ -372,13 +401,14 @@ class Hla(HighLevelAnalyzer):
         if not self._packet:
             # This is the start of a new packet - determine the type based on the first byte
             packet_class = PACKETS.get(data[0], None)
+            print("data[0]: {} packet name: {}".format(data[0], packet_class.__class__.__name__))
             if not packet_class:
                 self._last_byte = data
                 return AnalyzerFrame('unknown', frame.start_time, frame.end_time, {})
             elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == HCIEventPacket:
                 print("Detected to be an RX line by HCI Event.")
                 self.rx_channel = True
-            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64Packet and self._last_byte == b'\x00':
+            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64PacketWakeup:
                 print("Detected to be an RX line by BM64 0x00 wake byte.")
                 self.rx_channel = True
 
