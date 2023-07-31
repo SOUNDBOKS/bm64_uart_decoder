@@ -265,7 +265,7 @@ class MMIAction(BM64Cmd):
 
 class ChangeDeviceName(BM64Cmd):
     def get_string(self):
-        return "- " + self.data[:-1].decode('utf-8')
+        return self.data[:-1].decode('utf-8')
 
 
 class LESignalingCmd(BM64Cmd):
@@ -335,7 +335,7 @@ class BTMParameterSetting(BM64Cmd):
         if (data & 1 << 6):
             str += 'iAP, '
         if (data & 1 << 7):
-            str += 'PBAP'
+            str += 'PBAP, '
         return str
 
     def get_string(self):
@@ -350,8 +350,7 @@ class BTMParameterSetting(BM64Cmd):
         }
         self.sub_cmd = self.data[0]
         if self.sub_cmd == 0x04:
-            str = "- " + \
-                f'{BTM_PARAMETER_SETTING_PARAMETER[self.sub_cmd]}' + \
+            str = f'{BTM_PARAMETER_SETTING_PARAMETER[self.sub_cmd]}' + \
                 ": " + self.bit_to_profile()
 
         return str
@@ -441,9 +440,36 @@ class BTMStatus(BM64Cmd):
         return str
 
 
+class BTMUtilityReq(BM64Cmd):
+    def get_string(self):
+        BTM_UTILITY_REQUEST = {
+            0x00: 'BTM ask MCU to control the external amplifier',
+            0x01: 'BTM report the Aux line-in status to Host MCU.',
+            0x02: 'BTM notify MCU to handle BTM or MCU update process',
+            0x03: 'BTM notify MCU eeprom update finish',
+            0x04: 'BTM report the A2DP codec status to Host MCU.',
+            0x05: '[MSPK] BTM notify MCU to sync power off BTM',
+            0x06: '[MSPK] BTM notify MCU to sync Volume Control',
+            0x07: '[MSPK] BTM notify MCU to sync internal gain',
+            0x08: '[MSPK] BTM notify MCU to sync A2DP absolute volume',
+            0x09: '[MSPK] BTM notify MCU current channel setting',
+            0x0A: '[MSPK] BTM notify MCU synced MSPK power condition',
+            0x0B: '[MSPK] BTM notify MCU MSPK command success',
+            0x0C: '[MSPK] BTM notify MCU MSPK command fail',
+            0x0D: '[MSPK] BTM notify MCU certain MSPK Peripheral status has been changed',
+            0x0E: 'Reserved',
+            0x0F: 'Reserved',
+            0x10: 'Reserved',
+            0x11: '[MSPK] BTM notify MCU to sync Line-in absolute volume',
+            0x12: '[MSPK] BTM notify MCU that MSPK connection complete.',
+            0x13: 'BTM reports AVDTP start state to Host MCU.',
+            0x14: 'BTM reports AVDTP suspend state to Host MCU.',
+        }
+        return f'{BTM_UTILITY_REQUEST[self.data[0]]}'
+
+
 class Packet(ABC):
     HEADER_FMT = None
-    result_type = None
     PKG_LENGTH_INDEX = None
     PKG_LENGTH_FMT = None
 
@@ -582,14 +608,14 @@ class HCIEventPacket(Packet):
         })
 
 
-class BM64Packet(Packet):
+class BM64RXPacket(Packet):
     HEADER_FMT = ">HB"
     PKG_LENGTH_INDEX = 0
     PKG_LENGTH_FMT = ">H"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         # Readout info from header
-        length, event_code = self._header
+        _, event_code = self._header
         event_str = f"Unknown Event"
         # Check if we are configured to commands or events
         if (rx_channel != True):
@@ -602,6 +628,8 @@ class BM64Packet(Packet):
                 data_str = BTMParameterSetting(self._data).get_string()
             elif event_code == 0x13:
                 data_str = BTMUtilityFunction(self._data).get_string()
+            elif event_code == 0x14:
+                data_str = f'{BM64_EVENT_DESC[self._data[0]]}'
             elif event_code == 0x29:
                 data_str = LESignalingCmd(self._data).get_string()
             elif event_code == 0x2f:
@@ -609,38 +637,24 @@ class BM64Packet(Packet):
             else:
                 data_str = 'Not implemented event code: ' + \
                     str(hex(event_code))
-            return AnalyzerFrame('bm64', start_time, end_time, {
-                'packet_type': "BM64 Command",
-                'operation': event_str,
+            return AnalyzerFrame('BM64 Event', start_time, end_time, {
+                'packet_type': "BM64 Command:",
+                'event': event_str,
                 'data': data_str,
             })
-        else:
-            if event_code in BM64_EVENT_DESC:
-                event_str = BM64_EVENT_DESC[event_code]
-            return AnalyzerFrame('bm64', start_time, end_time, {
-                'packet_type': "BM64 Event",
-                'operation': event_str,
-            })
 
 
-class BM64PacketWakeup(BM64Packet):
+class BM64TXPacket(Packet):
     HEADER_FMT = ">BHB"
     PKG_LENGTH_INDEX = 1
     PKG_LENGTH_FMT = ">H"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         # Readout info from header
-        _, length, event_code = self._header
+        _, _, event_code = self._header
         event_str = f"Unknown Event"
         # Check if we are configured to commands or events
-        if (rx_channel != True):
-            if event_code in BM64_COMMAND_DESC:
-                event_str = BM64_COMMAND_DESC[event_code]
-            return AnalyzerFrame('bm64', start_time, end_time, {
-                'packet_type': "BM64 Command",
-                'operation': event_str,
-            })
-        else:
+        if (rx_channel == True):
             data = self._data
             data_str = ''
             event_str = BM64_EVENT_DESC[event_code]
@@ -660,6 +674,8 @@ class BM64PacketWakeup(BM64Packet):
                     data_str += ' - BTM memory is full'
             elif event_code == 0x01:
                 data_str = BTMStatus(data).get_string()
+            elif event_code == 0x1b:
+                data_str = BTMUtilityReq(data).get_string()
             elif event_code == 0x2d:
                 data_str = ReportTypeCodec(data).get_string()
             elif event_code == 0x30:
@@ -681,11 +697,11 @@ class BM64PacketWakeup(BM64Packet):
 
 # Define all the supported packets by their type
 PACKETS = {
-    0x00: BM64PacketWakeup,  # A bm64 package with wakeup b'0x00
+    0x00: BM64TXPacket,  # A bm64 package with wakeup b'0x00
     0x01: HCICommandPacket,
     0x02: HCIISDAPFlashPacket,
     0x04: HCIEventPacket,
-    0xAA: BM64Packet,
+    0xAA: BM64RXPacket,
 }
 
 
@@ -695,9 +711,6 @@ PACKETS = {
 class Hla(HighLevelAnalyzer):
 
     result_types = {
-        'bm64': {
-            'format': '{{data.packet_type}} - {{data.operation}} {{data.data}}'
-        },
         'BM64 Event': {
             'format': '{{data.packet_type}} - {{data.event}} ({{data.data}})'
         },
@@ -756,10 +769,8 @@ class Hla(HighLevelAnalyzer):
                 self._last_byte = data
                 return AnalyzerFrame('unknown', frame.start_time, frame.end_time, {})
             elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == HCIEventPacket:
-                print("Detected to be an RX line by HCI Event.")
                 self.rx_channel = True
-            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64PacketWakeup:
-                print("Detected to be an RX line by BM64 0x00 wake byte.")
+            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64TXPacket:
                 self.rx_channel = True
 
             self._start_time = frame.start_time
