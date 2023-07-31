@@ -163,7 +163,7 @@ class LESignalingEvent(BM64Cmd):
             0x03: "LE Connection Update RSP",
         }
         self.sub_cmd = self.data[0]
-        str = f'{LE_SIGNALING_SUB_EVENT_CODE[self.sub_cmd]}'
+        str = LE_SIGNALING_SUB_EVENT_CODE.get(self.sub_cmd, 'Unknown')
         if self.sub_cmd == 0x00:
             if self.data[1] == 0x00:
                 status = 'Standby'
@@ -193,7 +193,7 @@ class ReportLEGATTEvent(BM64Cmd):
             0x04: "BLE_REC_DISCOVER_CHARACTERISTIC_DESCRIPTORS",
             0x05: "BLE_REC_ATTRIBUTE_MTU_SIZE",
         }
-        return f'{LE_GATT_SUB_EVENT_CODE[self.data[0]]} - data: {self.data[1]}'
+        return LE_GATT_SUB_EVENT_CODE.get(self.data[0], 'Unknown')
 
 
 class MMIAction(BM64Cmd):
@@ -260,7 +260,7 @@ class MMIAction(BM64Cmd):
             0xF0: "MASTERSPK_REPAIR_TO_SLAVE",
         }
 
-        return f'{MMI_ACTION_DESC[self.data[1]]}'
+        return MMI_ACTION_DESC.get(self.data[0], 'Unknown')
 
 
 class ChangeDeviceName(BM64Cmd):
@@ -281,7 +281,7 @@ class LESignalingCmd(BM64Cmd):
             0x06: "LE Scan Response Data",
         }
         self.sub_cmd = self.data[0]
-        str = f'{LE_SIGNALING_SUB_CMD_TYPE[self.sub_cmd]}'
+        str = LE_SIGNALING_SUB_CMD_TYPE.get(self.sub_cmd, 'Unknown')
         if self.sub_cmd == 0x01:
             if self.data[1] == 0x00:
                 str += ' - Disable Advertising'
@@ -304,6 +304,29 @@ class LESignalingCmd(BM64Cmd):
         return str
 
 
+class LEGATTCmd(BM64Cmd):
+    def get_string(self):
+        LE_GATT_SUB_CMD_TYPE = {
+            0x00: 'Send_Characteristic_Value',
+            0x01: 'Send_Write_Response',
+            0x02: 'Update_Characteristic_Value',
+            0x03: 'Read_Local_Characteristic_Value',
+            0x04: 'Read_Local_All_Primary_Services',
+            0x05: 'Read_Local_Specific_Primary_Service',
+        }
+        self.sub_cmd = self.data[0]
+
+        str = f'{LE_GATT_SUB_CMD_TYPE[self.sub_cmd]}'
+        if self.sub_cmd == 0x00:
+            str += f' Connection Handle: {hex(self.data[1])} Charateristic Value Handle: {hex(self.data[2])} Charateristic Value: {hex(self.data[3])}'
+        elif self.sub_cmd == 0x01:
+            str += f' Connection Handle: {hex(self.data[1])} Request Opcode: {hex(self.data[2])} Attribute Handle: {self.data[3:5].hex()} Error Codes: {hex(self.data[5])}'
+        elif self.sub_cmd == 0x02:
+            str += f' Charateristic Value Handle: {self.data[1:3].hex()} Charateristic Value: {hex(self.data[3])}'
+
+        return str
+
+
 class LEAppCmd(BM64Cmd):
     def get_string(self):
         LE_APP_SUB_CMD_TYPE = {
@@ -311,8 +334,9 @@ class LEAppCmd(BM64Cmd):
             0x5d: 'Get_Att_MTU_Size',
         }
         self.sub_cmd = self.data[0]
+        str = LE_APP_SUB_CMD_TYPE.get(self.sub_cmd, 'Unknown')
         if self.sub_cmd == 0x5c:
-            str = f'{LE_APP_SUB_CMD_TYPE[self.sub_cmd]} - {self.data[2:-1].decode("utf-8")}'
+            str += f' - {self.data[2:-1].decode("utf-8")}'
         return str
 
 
@@ -390,53 +414,67 @@ class BTMUtilityFunction(BM64Cmd):
 
 class ReportTypeCodec(BM64Cmd):
     def get_string(self):
+        PARAMETER = {
+            0x00: '8KHz sample rate',
+            0x02: '16KHz sample rate',
+            0x04: '32KHz sample rate',
+            0x05: '48KHz sample rate',
+            0x06: '44.1KHz sample rate',
+            0x07: '88KHz sample rate',
+            0x08: '96KHz sample rate',
+        }
         self.sub_cmd = self.data[0]
-        if self.sub_cmd == 0x00:
-            str = '8KHz sample rate'
-        elif self.sub_cmd == 0x02:
-            str = '16KHz sample rate'
-        elif self.sub_cmd == 0x04:
-            str = '32KHz sample rate'
-        elif self.sub_cmd == 0x05:
-            str = '48KHz sample rate'
-        elif self.sub_cmd == 0x06:
-            str = '44.1KHz sample rate'
-        elif self.sub_cmd == 0x07:
-            str = '88KHz sample rate'
-        elif self.sub_cmd == 0x08:
-            str = '96KHz sample rate'
-        return str
+        return PARAMETER.get(self.sub_cmd, 'Unknown')
 
 
 class BTMStatus(BM64Cmd):
     def get_string(self):
+        PARAMETER = {
+            0x00: 'Power OFF state',
+            0x01: 'Pairing state (discoverable mode)',
+            0x02: 'Power ON state',
+            0x03: 'Pairing successful',
+            0x04: 'Pairing failed',
+            0x05: 'HF/HS link established',
+            0x06: 'A2DP link established',
+            0x07: 'HF link disconnected',
+            0x08: 'A2DP link disconnected',
+            0x09: 'SCO link connected',
+            0x0A: 'SCO link disconnected',
+            0x0B: 'AVRCP link established',
+            0x0C: 'AVRCP link disconnected',
+            0x0D: 'Standard SPP connected',
+            0x0E: 'Standard_SPP / iAP disconnected',
+            0x0F: 'Standby state',
+            0x10: 'iAP connected',
+            0x11: 'ACL disconnected',
+            0x12: 'MAP connected',
+            0x13: 'MAP operation forbidden',
+            0x14: 'MAP disconnected',
+            0x15: 'ACL connected',
+            0x16: 'SPP / iAP disconnected no_other Profile',
+            0x17: 'Link back ACL (BT paging)',
+            0x18: 'Inquiry State',
+            0x80: 'Current audio source is not Aux in or A2DP',
+            0x81: 'Current audio source is Aux in',
+            0x82: 'Current audio source is A2DP',
+        }
+
         self.sub_cmd = self.data[0]
-        if self.sub_cmd == 0x00:
-            str = 'Power OFF State'
-        elif self.sub_cmd == 0x01:
-            str = 'Paring State (discoverable mode)'
-        elif self.sub_cmd == 0x02:
-            str = 'Power ON State'
+        str = PARAMETER.get(self.sub_cmd, "unknown")
+        if self.sub_cmd == 0x02:
             if self.data[1] == 0x01:
                 str += ' - Already power on'
         elif self.sub_cmd == 0x03:
-            str = f'Pariring successful - Current link id: {hex(self.data[1:-1])}'
+            str += f' - Current link id: {hex(self.data[1:-1])}'
         elif self.sub_cmd == 0x04:
-            str = 'Paring Failed'
             if self.data[1] == 0x00:
                 str += ' - Time out'
             elif self.data[1] == 0x01:
                 str += ' - Fail'
             elif self.data[1] == 0x02:
                 str += ' - Exit paring mode'
-        elif self.sub_cmd == 0x05:
-            str = 'HF/HS link established'
-        elif self.sub_cmd == 0x06:
-            str = 'A2DP Link established'
-        elif self.sub_cmd == 0x0f:
-            str = 'Standby State'
-        else:
-            str = f'Unknown - {hex(self.sub_cmd)}'
+
         return str
 
 
@@ -465,7 +503,21 @@ class BTMUtilityReq(BM64Cmd):
             0x13: 'BTM reports AVDTP start state to Host MCU.',
             0x14: 'BTM reports AVDTP suspend state to Host MCU.',
         }
-        return f'{BTM_UTILITY_REQUEST[self.data[0]]}'
+        return BTM_UTILITY_REQUEST.get(self.data[0], 'Unknown')
+
+
+class ReadLinkStatusReply(BM64Cmd):
+    def get_string(self):
+        PARAMETER = {
+            0x00: 'Power OFF state',
+            0x01: 'pairing state (discoverable mode)',
+            0x02: 'standby state',
+            0x03: 'Connected state with only HF profile connected',
+            0x04: 'Connected state with only A2DP profile connected',
+            0x05: 'Connected state with only SPP profile connected',
+            0x06: 'Connected state with multi-profile connected',
+        }
+        return PARAMETER.get(self.data[0], 'Unknown')
 
 
 class Packet(ABC):
@@ -626,19 +678,27 @@ class BM64RXPacket(Packet):
                 data_str = ChangeDeviceName(self._data).get_string()
             elif event_code == 0x07:
                 data_str = BTMParameterSetting(self._data).get_string()
+            elif event_code == 0x0d:
+                data_str = ""
+            elif event_code == 0x0f:
+                data_str = ""
+            elif event_code == 0x10:
+                data_str = ""
             elif event_code == 0x13:
                 data_str = BTMUtilityFunction(self._data).get_string()
             elif event_code == 0x14:
                 data_str = f'{BM64_EVENT_DESC[self._data[0]]}'
             elif event_code == 0x29:
                 data_str = LESignalingCmd(self._data).get_string()
+            elif event_code == 0x2d:
+                data_str = LEGATTCmd(self._data).get_string()
             elif event_code == 0x2f:
                 data_str = LEAppCmd(self._data).get_string()
             else:
                 data_str = 'Not implemented event code: ' + \
                     str(hex(event_code))
-            return AnalyzerFrame('BM64 Event', start_time, end_time, {
-                'packet_type': "BM64 Command:",
+            return AnalyzerFrame('bm64', start_time, end_time, {
+                'packet_type': "BM64 Command",
                 'event': event_str,
                 'data': data_str,
             })
@@ -676,6 +736,12 @@ class BM64TXPacket(Packet):
                 data_str = BTMStatus(data).get_string()
             elif event_code == 0x1b:
                 data_str = BTMUtilityReq(data).get_string()
+            elif event_code == 0x1e:
+                data_str = ReadLinkStatusReply(data).get_string()
+            elif event_code == 0x20:
+                data_str = data[::-1][1:].hex()
+            elif event_code == 0x21:
+                data_str = data[1:-1].decode('utf-8')
             elif event_code == 0x2d:
                 data_str = ReportTypeCodec(data).get_string()
             elif event_code == 0x30:
@@ -688,8 +754,8 @@ class BM64TXPacket(Packet):
                 data_str = 'Not implemented event code: ' + \
                     str(hex(event_code))
 
-            return AnalyzerFrame('BM64 Event', start_time, end_time, {
-                'packet_type': "BM64 Event:",
+            return AnalyzerFrame('bm64', start_time, end_time, {
+                'packet_type': "BM64 Event",
                 'event': event_str,
                 'data': data_str,
             })
@@ -711,7 +777,7 @@ PACKETS = {
 class Hla(HighLevelAnalyzer):
 
     result_types = {
-        'BM64 Event': {
+        'bm64': {
             'format': '{{data.packet_type}} - {{data.event}} ({{data.data}})'
         },
         'hci_event': {
