@@ -145,34 +145,383 @@ BM64_EVENT_DESC = {
     0x50: "Reserved for internal use",
 }
 
-# BM64 HCI Command Enumeration
-HCI_COMMAND_DESC = {
-    0x1005: "Read Buffer Size",
-    0x0c33: "Host Buffer Size",
-    0x0405: "Create Connection Command",
-    0x0406: "Disconnect Connection Command",
-}
 
-# BM64 HCI Event Enumeration
-HCI_EVENT_DESC = {
-    0x03: "Connection Complete Event",
-    0x05: "Disconnect Complete Event",
-    0x0E: "Command Complete Event",
-    0x0F: "Command Status Event",
-    0x13: "Number of Completed Packet Event",
-}
+class BM64Cmd:
+    def __init__(self, data):
+        self.data = data
 
-# ISDAP Command Enumeration
-ISDAP_COMMAND_DESC = {
-    0x001: "Write Continue Memory Command",
-    0x100: "Lock / Unlock Memory Command",
-    0x111: "Write Memory Command",
-    0x112: "Erase Memory Command",
-}
+    def get_string(self):
+        return f'{self.data}'
+
+
+class LESignalingEvent(BM64Cmd):
+    def get_string(self):
+        LE_SIGNALING_SUB_EVENT_CODE = {
+            0x00: "LE Status Report",
+            0x01: "LE Advertising Control Report",
+            0x02: "LE Connection Parameter Report",
+            0x03: "LE Connection Update RSP",
+        }
+        self.sub_cmd = self.data[0]
+        str = LE_SIGNALING_SUB_EVENT_CODE.get(self.sub_cmd, 'Unknown')
+        if self.sub_cmd == 0x00:
+            if self.data[1] == 0x00:
+                status = 'Standby'
+            elif self.data[1] == 0x01:
+                status = 'Advertising'
+            elif self.data[1] == 0x02:
+                status = 'Scanning'
+            elif self.data[1] == 0x03:
+                status = 'Connected'
+            str += f' - {status} - {self.data[2]}'
+        elif self.sub_cmd == 0x01:
+            if self.data[1] == 0x00:
+                status = 'Command Succeeded'
+            else:
+                status = 'Command Failed'
+            str += f' - {status}'
+        return str
+
+
+class ReportLEGATTEvent(BM64Cmd):
+    def get_string(self):
+        LE_GATT_SUB_EVENT_CODE = {
+            0x00: "BLE_REC_CLIENT_WRITE_CHAR_VALUE",
+            0x01: "BLE_REC_READ_LOCAL_CHAR_VALUE",
+            0x02: "BLE_REC_DISCOVER_ALL_SERVICES",
+            0x03: "BLE_REC_DISCOVER_CHARACTERISTICS_FOR_SERVICE",
+            0x04: "BLE_REC_DISCOVER_CHARACTERISTIC_DESCRIPTORS",
+            0x05: "BLE_REC_ATTRIBUTE_MTU_SIZE",
+        }
+        return LE_GATT_SUB_EVENT_CODE.get(self.data[0], 'Unknown')
+
+
+class MMIAction(BM64Cmd):
+    def get_string(self):
+        MMI_ACTION_DESC = {
+            0x01: "ADD_REMOVE_SCO_LINK",
+            0x02: "FORCE_END_CALL",
+            0x04: "ACCEPT_CALL",
+            0x05: "REJECT_CALL",
+            0x06: "ENDCALL_OR_TRANSFER_TO_HEADSET",
+            0x07: "MIC_MUTE_TOGGLE",
+            0x08: "MUTE_MIC",
+            0x09: "UNMUTE_MIC",
+            0x0A: "VOICE_DIAL",
+            0x0B: "CANCLE_VOICE_DAIL",
+            0x0C: "LAST_NUMBER_REDIAL",
+            0x0D: "ACTIVE_CALL_HOLD_ACCEPT_HELD_CALL",
+            0x0E: "VOICE_TRANSFER",
+            0x0F: "QUERY_CALL_LIST",
+            0x10: "THREE_WAY_CALL",
+            0x11: "RELEASE_CALL",
+            0x12: "ACCEPT_WAITING_HOLD_CALL_RLS_ACTIVE_CALL",
+            0x16: "INITIAL_HF_CONNECTION",
+            0x17: "DISCONNECT_HF_LINK",
+            0x24: "INC_MIC_GAIN",
+            0x25: "DEC_MIC_GAIN",
+            0x26: "SWITCH_PRIMARY_SECONDARY_HF_DEVICE",
+            0x30: "INC_SPK_GAIN",
+            0x31: "DEC_SPK_GAIN",
+            0x32: "INITIAL_A2DP_CONNECT_PLAY_PAUSE",
+            0x33: "STOP_MEDIA",
+            0x34: "NEXT_SONG",
+            0x35: "PREVIOUS_SONG",
+            0x3B: "DISCONNECT_A2DP",
+            0x50: "STANDBY_ENTERING_PAIRING",
+            0x51: "POWERON_BUTTON_PRESS",
+            0x52: "POWERON_BUTTON_RELEASE",
+            0x53: "POWEROFF_BUTTON_PRESS",
+            0x54: "POWEROFF_BUTTON_RELEASE",
+            0x56: "RESET_EEPROM_SETTING",
+            0x5D: "ANY_MODE_ENTERING_PAIRING",
+            0x5E: "POWEROFF_BT",
+            0x60: "BUZZER_TOGGLE",
+            0x61: "DISABLE_BUZZER",
+            0x62: "ENABLE_BUZZER",
+            0x63: "TONE_CHANGE",
+            0x64: "RETRIEVE_PHONE_BOOK",
+            0x65: "RETRIEVE_MISS_CALL_HISTORY",
+            0x66: "RETRIEVE_RECEIVED_CALL_HISTORY",
+            0x67: "RETRIEVE_DIALED_CALL_HISTORY",
+            0x68: "RETRIEVE_ALL_CALL_HISTORY",
+            0x69: "CANCLE_RETRIEVE",
+            0x6A: "INDICATE_BATTERY_STATUS",
+            0x6B: "EXIT_PAIRING_MODE",
+            0x6C: "LINK_BACK_DEVICE",
+            0x6D: "DISCONNECT_ALL_LINK",
+            0xE0: "MASTERSPK_ENTER_CSB_PAGE",
+            0xE1: "SLAVESPK_ENTER_CSB_PAGESCAN",
+            0xE2: "NSPK_ADD_SPEAKER",
+            0xE5: "MASTERSPK_TERMINAL_CSB",
+            0xE7: "MASTERSPK_ENTER_AUXMODE",
+            0xE8: "MASTERSPK_EXIT_AUXMODE",
+            0xED: "POWER_OFF_ALL_SPK",
+            0xF0: "MASTERSPK_REPAIR_TO_SLAVE",
+        }
+
+        return MMI_ACTION_DESC.get(self.data[0], 'Unknown')
+
+
+class ChangeDeviceName(BM64Cmd):
+    def get_string(self):
+        return self.data[:-1].decode('utf-8')
+
+
+class LESignalingCmd(BM64Cmd):
+    def get_string(self):
+
+        LE_SIGNALING_SUB_CMD_TYPE = {
+            0x00: "Query LE status",
+            0x01: "LE Advertising Control",
+            0x02: "LE Connection Parameters Update REQ",
+            0x03: "LE Advertising Interval Update",
+            0x04: "LE Advertising Type",
+            0x05: "LE Advertising Data",
+            0x06: "LE Scan Response Data",
+        }
+        self.sub_cmd = self.data[0]
+        str = LE_SIGNALING_SUB_CMD_TYPE.get(self.sub_cmd, 'Unknown')
+        if self.sub_cmd == 0x01:
+            if self.data[1] == 0x00:
+                str += ' - Disable Advertising'
+            else:
+                str += '  - Enable Advertising'
+        elif self.sub_cmd == 0x04:
+            if self.data[1] == 0x00:
+                type = 'Connectable undirected advertising.'
+            elif self.data[1] == 0x01:
+                type = 'Reserved'
+            elif self.data[1] == 0x02:
+                type = 'Scannable undirected advertising'
+            elif self.data[1] == 0x03:
+                type = 'Non connectable undirected advertising.'
+            str += f' - {type}'
+        elif self.sub_cmd == 0x05:
+            str += f'  - {self.data[2:-1]}'
+        elif self.sub_cmd == 0x06:
+            str += f' - {self.data[2:-1]}'
+        return str
+
+
+class LEGATTCmd(BM64Cmd):
+    def get_string(self):
+        LE_GATT_SUB_CMD_TYPE = {
+            0x00: 'Send_Characteristic_Value',
+            0x01: 'Send_Write_Response',
+            0x02: 'Update_Characteristic_Value',
+            0x03: 'Read_Local_Characteristic_Value',
+            0x04: 'Read_Local_All_Primary_Services',
+            0x05: 'Read_Local_Specific_Primary_Service',
+        }
+        self.sub_cmd = self.data[0]
+
+        str = f'{LE_GATT_SUB_CMD_TYPE[self.sub_cmd]}'
+        if self.sub_cmd == 0x00:
+            str += f' Connection Handle: {hex(self.data[1])} Charateristic Value Handle: {hex(self.data[2])} Charateristic Value: {hex(self.data[3])}'
+        elif self.sub_cmd == 0x01:
+            str += f' Connection Handle: {hex(self.data[1])} Request Opcode: {hex(self.data[2])} Attribute Handle: {self.data[3:5].hex()} Error Codes: {hex(self.data[5])}'
+        elif self.sub_cmd == 0x02:
+            str += f' Charateristic Value Handle: {self.data[1:3].hex()} Charateristic Value: {hex(self.data[3])}'
+
+        return str
+
+
+class LEAppCmd(BM64Cmd):
+    def get_string(self):
+        LE_APP_SUB_CMD_TYPE = {
+            0x5c: 'Set_Device_Name',
+            0x5d: 'Get_Att_MTU_Size',
+        }
+        self.sub_cmd = self.data[0]
+        str = LE_APP_SUB_CMD_TYPE.get(self.sub_cmd, 'Unknown')
+        if self.sub_cmd == 0x5c:
+            str += f' - {self.data[2:-1].decode("utf-8")}'
+        return str
+
+
+class BTMParameterSetting(BM64Cmd):
+    def bit_to_profile(self):
+        data = self.data[1]
+        str = ''
+        if (data & 1 << 0):
+            str += 'HSP, '
+        if (data & 1 << 1):
+            str += 'HFP, '
+        if (data & 1 << 2):
+            str += 'A2DP, '
+        if (data & 1 << 3):
+            str += 'AVRCP CT, '
+        if (data & 1 << 4):
+            str += 'AVRCP TG, '
+        if (data & 1 << 5):
+            str += 'SPP, '
+        if (data & 1 << 6):
+            str += 'iAP, '
+        if (data & 1 << 7):
+            str += 'PBAP, '
+        return str
+
+    def get_string(self):
+        BTM_PARAMETER_SETTING_PARAMETER = {
+            0x00: "Set Pairing Timeout Value",
+            0x01: "Set Supported A2DP Codec Type(This change will stored in device)",
+            0x02: "Enable/Disable BTM Standby Mode (This change will update the e2prom)",
+            0x03: "Set The Recharging Battery Capacity Threshold",
+            0x04: "Set Supported BT Classic Profile",
+            0x05: "Set SBC bitpool setting : this should be set before A2DP connection established",
+            0x06: "Setting iAP2 serial number (This change will stored in device)",
+        }
+        self.sub_cmd = self.data[0]
+        if self.sub_cmd == 0x04:
+            str = f'{BTM_PARAMETER_SETTING_PARAMETER[self.sub_cmd]}' + \
+                ": " + self.bit_to_profile()
+
+        return str
+
+
+class BTMUtilityFunction(BM64Cmd):
+    def get_string(self):
+        BTM_UTILITY_FUCNTION = {
+            0x00: 'Host MCU ask BTM to process NFC detected function.',
+            0x01: 'To Enable/Disable in-built Aux Line In Function',
+            0x02: 'To generate one-shot specific tone',
+            0x03: 'To make BTM on-discoverable and non-connectable or active',
+            0x04: 'To indicate charger adaptor status',
+            0x05: 'To indicate BTM that remote device supports TTS engine. The BTM shall disable internal TTS engine.',
+            0x06: 'To update partial EEPROM data which are related to part of audio configuration.',
+            0x07: 'Voice prompt for the given version number.',
+            0x08: 'For MSPK, MCU notifies the BTM current power condition',
+            0x09: 'To update vendor EEPROM data',
+            0x0A: 'For MSPK, To inform Central that certain status has been changed in Peripheral side',
+            0x0B: 'To Read Serial number. For this command, MCU will receive event Report_Vendor_EEPROM_Data with report data 16 bytes.',
+            0x0C: 'To switch audio channel',
+            0x0D: 'Customized MCU report : MCU Report specified information the following parameter',
+            0x0E: 'Customized MCU request: MCU request specified information by the following parameter. BTM replies the specified information by E3E',
+            0x0F: 'To enable MIC loopback as Line-in',
+        }
+
+        self.sub_cmd = self.data[0]
+        str = f'{BTM_UTILITY_FUCNTION[self.sub_cmd]}'
+        if self.sub_cmd == 0x01:
+            if self.data[1] == 0x00:
+                str += ' - Line in is not controlled by MCU'
+            else:
+                str += ' - Line in is controlled by MCU'
+
+        return str
+
+
+class ReportTypeCodec(BM64Cmd):
+    def get_string(self):
+        PARAMETER = {
+            0x00: '8KHz sample rate',
+            0x02: '16KHz sample rate',
+            0x04: '32KHz sample rate',
+            0x05: '48KHz sample rate',
+            0x06: '44.1KHz sample rate',
+            0x07: '88KHz sample rate',
+            0x08: '96KHz sample rate',
+        }
+        self.sub_cmd = self.data[0]
+        return PARAMETER.get(self.sub_cmd, 'Unknown')
+
+
+class BTMStatus(BM64Cmd):
+    def get_string(self):
+        PARAMETER = {
+            0x00: 'Power OFF state',
+            0x01: 'Pairing state (discoverable mode)',
+            0x02: 'Power ON state',
+            0x03: 'Pairing successful',
+            0x04: 'Pairing failed',
+            0x05: 'HF/HS link established',
+            0x06: 'A2DP link established',
+            0x07: 'HF link disconnected',
+            0x08: 'A2DP link disconnected',
+            0x09: 'SCO link connected',
+            0x0A: 'SCO link disconnected',
+            0x0B: 'AVRCP link established',
+            0x0C: 'AVRCP link disconnected',
+            0x0D: 'Standard SPP connected',
+            0x0E: 'Standard_SPP / iAP disconnected',
+            0x0F: 'Standby state',
+            0x10: 'iAP connected',
+            0x11: 'ACL disconnected',
+            0x12: 'MAP connected',
+            0x13: 'MAP operation forbidden',
+            0x14: 'MAP disconnected',
+            0x15: 'ACL connected',
+            0x16: 'SPP / iAP disconnected no_other Profile',
+            0x17: 'Link back ACL (BT paging)',
+            0x18: 'Inquiry State',
+            0x80: 'Current audio source is not Aux in or A2DP',
+            0x81: 'Current audio source is Aux in',
+            0x82: 'Current audio source is A2DP',
+        }
+
+        self.sub_cmd = self.data[0]
+        str = PARAMETER.get(self.sub_cmd, "unknown")
+        if self.sub_cmd == 0x02:
+            if self.data[1] == 0x01:
+                str += ' - Already power on'
+        elif self.sub_cmd == 0x03:
+            str += f' - Current link id: {hex(self.data[1:-1])}'
+        elif self.sub_cmd == 0x04:
+            if self.data[1] == 0x00:
+                str += ' - Time out'
+            elif self.data[1] == 0x01:
+                str += ' - Fail'
+            elif self.data[1] == 0x02:
+                str += ' - Exit paring mode'
+
+        return str
+
+
+class BTMUtilityReq(BM64Cmd):
+    def get_string(self):
+        BTM_UTILITY_REQUEST = {
+            0x00: 'BTM ask MCU to control the external amplifier',
+            0x01: 'BTM report the Aux line-in status to Host MCU.',
+            0x02: 'BTM notify MCU to handle BTM or MCU update process',
+            0x03: 'BTM notify MCU eeprom update finish',
+            0x04: 'BTM report the A2DP codec status to Host MCU.',
+            0x05: '[MSPK] BTM notify MCU to sync power off BTM',
+            0x06: '[MSPK] BTM notify MCU to sync Volume Control',
+            0x07: '[MSPK] BTM notify MCU to sync internal gain',
+            0x08: '[MSPK] BTM notify MCU to sync A2DP absolute volume',
+            0x09: '[MSPK] BTM notify MCU current channel setting',
+            0x0A: '[MSPK] BTM notify MCU synced MSPK power condition',
+            0x0B: '[MSPK] BTM notify MCU MSPK command success',
+            0x0C: '[MSPK] BTM notify MCU MSPK command fail',
+            0x0D: '[MSPK] BTM notify MCU certain MSPK Peripheral status has been changed',
+            0x0E: 'Reserved',
+            0x0F: 'Reserved',
+            0x10: 'Reserved',
+            0x11: '[MSPK] BTM notify MCU to sync Line-in absolute volume',
+            0x12: '[MSPK] BTM notify MCU that MSPK connection complete.',
+            0x13: 'BTM reports AVDTP start state to Host MCU.',
+            0x14: 'BTM reports AVDTP suspend state to Host MCU.',
+        }
+        return BTM_UTILITY_REQUEST.get(self.data[0], 'Unknown')
+
+
+class ReadLinkStatusReply(BM64Cmd):
+    def get_string(self):
+        PARAMETER = {
+            0x00: 'Power OFF state',
+            0x01: 'pairing state (discoverable mode)',
+            0x02: 'standby state',
+            0x03: 'Connected state with only HF profile connected',
+            0x04: 'Connected state with only A2DP profile connected',
+            0x05: 'Connected state with only SPP profile connected',
+            0x06: 'Connected state with multi-profile connected',
+        }
+        return PARAMETER.get(self.data[0], 'Unknown')
+
 
 class Packet(ABC):
     HEADER_FMT = None
-    RESULT_TYPES = None
     PKG_LENGTH_INDEX = None
     PKG_LENGTH_FMT = None
 
@@ -188,7 +537,8 @@ class Packet(ABC):
             if not self._header:
                 # Find the header size of this packet
                 header_size = struct.calcsize(self.HEADER_FMT)
-                new_header_bytes = min(header_size - len(self._header_temp), len(data))
+                new_header_bytes = min(
+                    header_size - len(self._header_temp), len(data))
 
                 # Shift the data into the header
                 self._header_temp += data[:new_header_bytes]
@@ -200,10 +550,12 @@ class Packet(ABC):
                     return False
 
                 # Decode the header
-                self._header = struct.unpack(self.HEADER_FMT, self._header_temp)
+                self._header = struct.unpack(
+                    self.HEADER_FMT, self._header_temp)
 
                 # Get the length of the rest of the package, using the package defined length format
-                self._pkg_length = struct.unpack(self.PKG_LENGTH_FMT, self._header_temp[self.PKG_LENGTH_INDEX:self.PKG_LENGTH_INDEX + struct.calcsize(self.PKG_LENGTH_FMT)])[0]
+                self._pkg_length = struct.unpack(
+                    self.PKG_LENGTH_FMT, self._header_temp[self.PKG_LENGTH_INDEX:self.PKG_LENGTH_INDEX + struct.calcsize(self.PKG_LENGTH_FMT)])[0]
 
             # Load the data bytes
             self._data += data
@@ -214,13 +566,20 @@ class Packet(ABC):
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         pass
 
+
 class HCICommandPacket(Packet):
     HEADER_FMT = "<HB"
-    RESULT_TYPES = {'hci_cmd': "{{data.packet_type}} ({{data.operation}}:({{data.opcode}} | length={{data.length}})"}
     PKG_LENGTH_INDEX = 2
     PKG_LENGTH_FMT = "B"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
+        # BM64 HCI Command Enumeration
+        HCI_COMMAND_DESC = {
+            0x1005: "Read Buffer Size",
+            0x0c33: "Host Buffer Size",
+            0x0405: "Create Connection Command",
+            0x0406: "Disconnect Connection Command",
+        }
         opcode, param_len = self._header
         return AnalyzerFrame('hci_cmd', start_time, end_time, {
             'packet_type': "HCI Command",
@@ -229,13 +588,20 @@ class HCICommandPacket(Packet):
             'length': param_len,
         })
 
+
 class HCIISDAPFlashPacket(Packet):
     HEADER_FMT = "<HH"
-    RESULT_TYPES = {'hci_isdap': "{{data.packet_type}} (\'{{data.operation}}\', isdap_length=[{{data.isdap_length}}], isdap_result=\'{{data.isdap_result}})\'"}
     PKG_LENGTH_INDEX = 2
     PKG_LENGTH_FMT = "<H"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
+        # ISDAP Command Enumeration
+        ISDAP_COMMAND_DESC = {
+            0x001: "Write Continue Memory Command",
+            0x100: "Lock / Unlock Memory Command",
+            0x111: "Write Memory Command",
+            0x112: "Erase Memory Command",
+        }
         result = 'unknown'
         write_flag = 'unknown'
         # Check if we have the ISDAP header
@@ -246,12 +612,12 @@ class HCIISDAPFlashPacket(Packet):
             # Set pointer
             self._data = self._data[4:]
 
-            if(rx_channel == True):
+            if (rx_channel == True):
                 # Check the status message
                 result = struct.unpack("<H", self._data[:2])[0]
             else:
                 result = 'NA'
-                if(isdap_opcode in [0x001, 0x111]): # Write memory command
+                if (isdap_opcode in [0x001, 0x111]):  # Write memory command
                     if isdap_length & 0x8000:
                         write_flag = True
                         # First bit is a flag
@@ -267,111 +633,174 @@ class HCIISDAPFlashPacket(Packet):
             'isdap_length': isdap_length,
             'write_flag': write_flag,
             'isdap_result': "success" if result == 0 else result,
-            'data' : self._data,
+            'data': self._data,
         })
+
 
 class HCIEventPacket(Packet):
     HEADER_FMT = "BB"
-    RESULT_TYPES = {'hci_event': "{{data.packet_type}} ({{data.operation}})"}
     PKG_LENGTH_INDEX = 1
     PKG_LENGTH_FMT = "B"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
+        # BM64 HCI Event Enumeration
+        HCI_EVENT_DESC = {
+            0x03: "Connection Complete Event",
+            0x05: "Disconnect Complete Event",
+            0x0E: "Command Complete Event",
+            0x0F: "Command Status Event",
+            0x13: "Number of Completed Packet Event",
+        }
         event_code, length = self._header
-        if event_code in HCI_EVENT_DESC:
-            event_str = HCI_EVENT_DESC[event_code]
-        else:
-            event_str = f"Unknown Event"
+        event_str = HCI_EVENT_DESC[event_code]
+
         return AnalyzerFrame('hci_event', start_time, end_time, {
             'packet_type': "HCI Event",
             'operation': event_str,
         })
 
-class BM64Packet(Packet):
+
+class BM64RXPacket(Packet):
     HEADER_FMT = ">HB"
-    RESULT_TYPES = {'bm64': "{{data.packet_type}} ({{data.opcode}}) ({{data.operation}}) ({{data.packet_length}})"}
     PKG_LENGTH_INDEX = 0
     PKG_LENGTH_FMT = ">H"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         # Readout info from header
-        length, event_code = self._header
+        _, event_code = self._header
         event_str = f"Unknown Event"
         # Check if we are configured to commands or events
-        if(rx_channel != True):
-            if event_code in BM64_COMMAND_DESC:
-                event_str = BM64_COMMAND_DESC[event_code]
+        if (rx_channel != True):
+            event_str = BM64_COMMAND_DESC[event_code]
+            if event_code == 0x02:
+                data_str = MMIAction(self._data).get_string()
+            elif event_code == 0x05:
+                data_str = ChangeDeviceName(self._data).get_string()
+            elif event_code == 0x07:
+                data_str = BTMParameterSetting(self._data).get_string()
+            elif event_code == 0x0d:
+                data_str = ""
+            elif event_code == 0x0f:
+                data_str = ""
+            elif event_code == 0x10:
+                data_str = ""
+            elif event_code == 0x13:
+                data_str = BTMUtilityFunction(self._data).get_string()
+            elif event_code == 0x14:
+                data_str = f'{BM64_EVENT_DESC[self._data[0]]}'
+            elif event_code == 0x29:
+                data_str = LESignalingCmd(self._data).get_string()
+            elif event_code == 0x2d:
+                data_str = LEGATTCmd(self._data).get_string()
+            elif event_code == 0x2f:
+                data_str = LEAppCmd(self._data).get_string()
+            else:
+                data_str = 'Not implemented event code: ' + \
+                    str(hex(event_code))
             return AnalyzerFrame('bm64', start_time, end_time, {
                 'packet_type': "BM64 Command",
-                'opcode': event_code,
-                'operation': event_str,
-                'packet_length': length,
-            })
-        else:
-            if event_code in BM64_EVENT_DESC:
-                event_str = BM64_EVENT_DESC[event_code]
-            return AnalyzerFrame('bm64', start_time, end_time, {
-                'packet_type': "BM64 Event",
-                'operation': event_str,
-                'packet_length': length,
+                'event': event_str,
+                'data': data_str,
             })
 
-class BM64PacketWakeup(BM64Packet):
+
+class BM64TXPacket(Packet):
     HEADER_FMT = ">BHB"
     PKG_LENGTH_INDEX = 1
     PKG_LENGTH_FMT = ">H"
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         # Readout info from header
-        garbage, length, event_code = self._header
+        _, _, event_code = self._header
         event_str = f"Unknown Event"
         # Check if we are configured to commands or events
-        if(rx_channel != True):
-            if event_code in BM64_COMMAND_DESC:
-                event_str = BM64_COMMAND_DESC[event_code]
-            return AnalyzerFrame('bm64', start_time, end_time, {
-                'packet_type': "BM64 Command",
-                'opcode': event_code,
-                'operation': event_str,
-                'packet_length': length,
-            })
-        else:
-            if event_code in BM64_EVENT_DESC:
-                event_str = BM64_EVENT_DESC[event_code]
+        if (rx_channel == True):
+            data = self._data
+            data_str = ''
+            event_str = BM64_EVENT_DESC[event_code]
+            if event_code == 0x00:
+                data_str = BM64_COMMAND_DESC[data[0]]
+                if data[1] == 0x00:
+                    data_str += ' - Command complete: BTM can handle this command.'
+                elif data[1] == 0x01:
+                    data_str += ' - Command disallow:: BTM cannot handle this command.'
+                elif data[1] == 0x02:
+                    data_str += ' - Unknown command'
+                elif data[1] == 0x03:
+                    data_str += ' - Parameters error'
+                elif data[1] == 0x04:
+                    data_str += ' - BTM is busy'
+                elif data[1] == 0x05:
+                    data_str += ' - BTM memory is full'
+            elif event_code == 0x01:
+                data_str = BTMStatus(data).get_string()
+            elif event_code == 0x1b:
+                data_str = BTMUtilityReq(data).get_string()
+            elif event_code == 0x1e:
+                data_str = ReadLinkStatusReply(data).get_string()
+            elif event_code == 0x20:
+                data_str = data[::-1][1:].hex()
+            elif event_code == 0x21:
+                data_str = data[1:-1].decode('utf-8')
+            elif event_code == 0x2d:
+                data_str = ReportTypeCodec(data).get_string()
+            elif event_code == 0x30:
+                data_str = "Initialization complete"
+            elif event_code == 0x32:
+                data_str = LESignalingEvent(data).get_string()
+            elif event_code == 0x39:
+                data_str = ReportLEGATTEvent(data).get_string()
+            else:
+                data_str = 'Not implemented event code: ' + \
+                    str(hex(event_code))
+
             return AnalyzerFrame('bm64', start_time, end_time, {
                 'packet_type': "BM64 Event",
-                'operation': event_str,
-                'packet_length': length,
+                'event': event_str,
+                'data': data_str,
             })
+
 
 # Define all the supported packets by their type
 PACKETS = {
-    0x00: BM64PacketWakeup, # A bm64 package with wakeup b'0x00
+    0x00: BM64TXPacket,  # A bm64 package with wakeup b'0x00
     0x01: HCICommandPacket,
     0x02: HCIISDAPFlashPacket,
     0x04: HCIEventPacket,
-    0xAA: BM64Packet,
+    0xAA: BM64RXPacket,
 }
 
-# Collect all the result types
-RESULT_TYPES = {}
-for p in PACKETS.values():
-    RESULT_TYPES.update({k: {'format': v} for k, v in p.RESULT_TYPES.items()})
 
 # High level analyzers must subclass the HighLevelAnalyzer class.
+
+
 class Hla(HighLevelAnalyzer):
+
+    result_types = {
+        'bm64': {
+            'format': '{{data.packet_type}} - {{data.event}} ({{data.data}})'
+        },
+        'hci_event': {
+            'format': '{{data.packet_type}} ({{data.operation}})'
+        },
+        'hci_cmd': {
+            'format': '{{data.packet_type}} ({{data.operation}}:({{data.opcode}} | length={{data.length}})'
+        },
+        'hci_isdap': {
+            'format': '{{data.packet_type}} (\'{{data.operation}}\', isdap_length=[{{data.isdap_length}}], isdap_result=\'{{data.isdap_result}})\''
+        },
+    }
+
     # As there is no protocol difference in the BM64 commands vs events, we need to detect the direction of the communication.
-    Channel_Configuration = ChoicesSetting(['Autodetect', 'MCU -> BM64 (TX)', 'BM64 -> MCU (RX)'])
+    Channel_Configuration = ChoicesSetting(
+        ['Autodetect', 'MCU -> BM64 (TX)', 'BM64 -> MCU (RX)'])
     # Default
     rx_channel = None
     # Override
-    if(Channel_Configuration == 'MCU -> BM64'):
+    if (Channel_Configuration == 'MCU -> BM64'):
         rx_channel = False
     elif (Channel_Configuration == 'BM64 -> MCU'):
         rx_channel = True
-
-    # Result types based on the packet types
-    result_types = RESULT_TYPES
 
     def __init__(self):
         self._packet = None
@@ -406,10 +835,8 @@ class Hla(HighLevelAnalyzer):
                 self._last_byte = data
                 return AnalyzerFrame('unknown', frame.start_time, frame.end_time, {})
             elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == HCIEventPacket:
-                print("Detected to be an RX line by HCI Event.")
                 self.rx_channel = True
-            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64PacketWakeup:
-                print("Detected to be an RX line by BM64 0x00 wake byte.")
+            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel == None and packet_class == BM64TXPacket:
                 self.rx_channel = True
 
             self._start_time = frame.start_time
@@ -417,7 +844,8 @@ class Hla(HighLevelAnalyzer):
 
         elif self._packet.process_data(data):
             # This is the end of the packet signalled by the packet class
-            result = self._packet.get_analyzer_frame(self._start_time, frame.end_time, self.rx_channel)
+            result = self._packet.get_analyzer_frame(
+                self._start_time, frame.end_time, self.rx_channel)
 
             # reset variables
             self._packet = None
