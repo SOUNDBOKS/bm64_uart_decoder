@@ -534,6 +534,7 @@ class Packet(ABC):
         self._header_temp = b''
         self._header = None
         self._data = b''
+        self._pkg_length = None
 
     def process_data(self, data):
         while data:
@@ -557,14 +558,15 @@ class Packet(ABC):
                     self.HEADER_FMT, self._header_temp)
 
                 # Get the length of the rest of the package, using the package defined length format
-                _pkg_length = struct.unpack(
+                self._pkg_length = struct.unpack(
                     self.PKG_LENGTH_FMT, self._header_temp[self.PKG_LENGTH_INDEX:self.PKG_LENGTH_INDEX + struct.calcsize(self.PKG_LENGTH_FMT)])[0]
 
             # Load the data bytes
             self._data += data
 
+            assert self._pkg_length is not None
             # Only return true if we have the full packet
-            return len(self._data) >= _pkg_length
+            return len(self._data) >= self._pkg_length
 
     def get_analyzer_frame(self, start_time, end_time, rx_channel):
         pass
@@ -602,8 +604,10 @@ class HCIISDAPFlashPacket(Packet):
         isdap_command_desc = {
             0x001: "Write Continue Memory Command",
             0x100: "Lock / Unlock Memory Command",
+            0x110: "Read Memory Command",
             0x111: "Write Memory Command",
             0x112: "Erase Memory Command",
+            0x114: "Get Memory CRC Command",
         }
         result = 'unknown'
         write_flag = 'unknown'
