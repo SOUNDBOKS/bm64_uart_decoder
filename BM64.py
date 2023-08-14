@@ -1,4 +1,4 @@
-# This is a High Level Analyzer for the BM64 UART protocol for the Saleae Logic Analyzer.
+# High Level Analyzer for the BM64 UART protocol for the Saleae Logic Analyzer.
 # This file implements the recognition of the different packet types and the decoding of the events and commands in those packets.
 
 # This module is to be imported in Saleae Logic as an extension, and requires the  using the signals from the async serial analyzer.
@@ -559,7 +559,10 @@ class Packet(ABC):
 
                 # Get the length of the rest of the package, using the package defined length format
                 self._pkg_length = struct.unpack(
-                    self.PKG_LENGTH_FMT, self._header_temp[self.PKG_LENGTH_INDEX:self.PKG_LENGTH_INDEX + struct.calcsize(self.PKG_LENGTH_FMT)])[0]
+                    self.PKG_LENGTH_FMT,
+                    self._header_temp[
+                        self.PKG_LENGTH_INDEX: self.PKG_LENGTH_INDEX + struct.calcsize(self.PKG_LENGTH_FMT)]
+                )[0]
 
             # Load the data bytes
             self._data += data
@@ -585,7 +588,9 @@ class HCICommandPacket(Packet):
             0x0405: "Create Connection Command",
             0x0406: "Disconnect Connection Command",
         }
+
         opcode, param_len = self._header
+
         return AnalyzerFrame('hci_cmd', start_time, end_time, {
             'packet_type': "HCI Command",
             'operation': hci_command_description.get(opcode, "Unknown Opcode"),
@@ -594,13 +599,17 @@ class HCICommandPacket(Packet):
         })
 
 
-class HCIISDAPFlashPacket(Packet):
-    HEADER_FMT = "<HH"
-    PKG_LENGTH_INDEX = 2
-    PKG_LENGTH_FMT = "<H"
+class HCIISDAPCmd:
+    ''' A common class for ISDAP commands, however each individual command will have its own class.'''
 
-    def get_analyzer_frame(self, start_time, end_time, rx_channel):
-        # ISDAP Command Enumeration
+    def __init__(self, data, opcode, length):
+        # ISDAP Header
+        self.data = data
+        self.opcode = opcode
+        self.length = length
+
+    def get_opcode_string(self, opcode):
+        ''' Get the opcode string from the opcode enumeration'''
         isdap_command_desc = {
             0x001: "Write Continue Memory Command",
             0x100: "Lock / Unlock Memory Command",
@@ -609,38 +618,128 @@ class HCIISDAPFlashPacket(Packet):
             0x112: "Erase Memory Command",
             0x114: "Get Memory CRC Command",
         }
-        result = 'unknown'
-        write_flag = 'unknown'
+
+        return isdap_command_desc.get(opcode, "Unknown Opcode")
+
+    def get_analyzer_frame(self, start_time, end_time):
+        ''' Default analyzer frame for ISDAP commands if not specifically handled in seperate class.'''
+        return AnalyzerFrame('hci_isdap', start_time, end_time, {
+            'packet_type': "HCI Event",
+            'operation': self.get_opcode_string(self.opcode),
+            'isdap_opcode': self.opcode,
+            'isdap_length': self.length,
+        })
+
+
+class HCIISDAPPacket(Packet):
+    HEADER_FMT = "<HH"
+    PKG_LENGTH_INDEX = 2
+    PKG_LENGTH_FMT = "<H"
+
+    def get_analyzer_frame(self, start_time, end_time, rx_channel):
+
         # Check if we have the ISDAP header
         if len(self._data) >= 4:
             # Get the data.
-            isdap_opcode, isdap_length = struct.unpack("<HH", self._data[:4])
+            isdap_opcode, isdap_length = struct.unpack(
+                "<HH", self._data[:struct.calcsize("<HH")])
 
-            # Set pointer
-            self._data = self._data[4:]
+            # Move the data pointer to after isdap opcode and length
+            self._data = self._data[struct.calcsize("<HH"):]
 
             if rx_channel:
-                # Check the status message
-                result = struct.unpack("<H", self._data[:2])[0]
+                # If this is from the BM64, then this is a response with command result
+                return HCIISDAPResponse(self._data, isdap_opcode, isdap_length).get_analyzer_frame(start_time, end_time)
             else:
-                result = 'NA'
-                if (isdap_opcode in [0x001, 0x111]):  # Write memory command
-                    if isdap_length & 0x8000:
-                        write_flag = True
-                        # First bit is a flag
-                        isdap_length = isdap_length - 0x8000
-                    else:
-                        write_flag = False
+                if isdap_opcode == 0x001:    # Write memory command
+                    return HCIISDAPWriteContinueMemory(self._data, isdap_opcode, isdap_length).get_analyzer_frame(start_time, end_time)
+                elif isdap_opcode == 0x111:  # Write continue memory command
+                    return HCIISDAPWriteMemory(self._data, isdap_opcode, isdap_length).get_analyzer_frame(start_time, end_time)
 
-                    self._data = self._data[4:]
+        # Default if not handled previously
         return AnalyzerFrame('hci_isdap', start_time, end_time, {
             'packet_type': "HCI-ISDAP",
+            'operation': HCIISDAPCmd(self._data, isdap_opcode, isdap_length).get_opcode_string(isdap_opcode),
             'isdap_opcode': isdap_opcode,
-            'operation': isdap_command_desc.get(isdap_opcode, "Unknown ISDAP Opcode"),
             'isdap_length': isdap_length,
-            'write_flag': write_flag,
-            'isdap_result': "success" if result == 0 else result,
             'data': self._data,
+        })
+
+
+class HCIISDAPWriteMemory(HCIISDAPCmd):
+    def get_analyzer_frame(self, start_time, end_time):
+        # Check if the write flag is set.
+        if self.length & 0x8000:
+            write_flag = True
+            # First bit is a flag
+            self.length = self.length - 0x8000
+        else:
+            write_flag = False
+
+        # Get the isdap command parameters
+        isdap_memory_type, isdap_sub_memory_type,  = struct.unpack(
+            "BB", self.data[0:struct.calcsize("BB")])
+        isdap_bank_addr, isdap_bank = struct.unpack(
+            "<HH", self.data[struct.calcsize("BB"):struct.calcsize("<BBHH")])
+        isdap_packet_write_bytes, isdap_transfer_write_bytes,  = struct.unpack(
+            "<HH", self.data[struct.calcsize("<BBHH"):struct.calcsize("<BBHHHH")])
+
+        # Set the data pointer.
+        self.data = self.data[struct.calcsize("<BBHHHH"):]
+
+        return AnalyzerFrame('hci_isdap_write_memory', start_time, end_time, {
+            'packet_type': "HCI-ISDAP Write Memory",
+            'operation': self.get_opcode_string(self.opcode),
+            'isdap_opcode': self.opcode,
+            'isdap_length': self.length,
+            'isdap_memory_type': isdap_memory_type,
+            'isdap_sub_memory_type': isdap_sub_memory_type,
+            'isdap_write_bank': isdap_bank,
+            'isdap_write_bank_addr': isdap_bank_addr,
+            'isdap_packet_write_bytes': isdap_packet_write_bytes,
+            'isdap_transfer_write_bytes': isdap_transfer_write_bytes,
+            'write_continue_flag': write_flag,
+            'data': self.data,
+            'data_length': len(self.data),
+        })
+
+
+class HCIISDAPWriteContinueMemory(HCIISDAPCmd):
+    def get_analyzer_frame(self, start_time, end_time):
+        # Check if the write flag is set.
+        if self.length & 0x8000:
+            write_flag = True
+            # First bit is a flag
+            self.length = self.length - 0x8000
+        else:
+            write_flag = False
+
+        return AnalyzerFrame('hci_isdap_write_continue_memory', start_time, end_time, {
+            'packet_type': "HCI-ISDAP  Write Continue Memory",
+            'operation': self.get_opcode_string(self.opcode),
+            'isdap_opcode': self.opcode,
+            'isdap_length': self.length,
+            'write_continue_flag': write_flag,
+            'data': self.data,
+            'data_length': len(self.data),
+        })
+
+
+class HCIISDAPResponse(HCIISDAPCmd):
+    def get_analyzer_frame(self, start_time, end_time):
+        # Check the status message
+        result = struct.unpack("<H", self.data[:struct.calcsize("<H")])[0]
+
+        # Move the data pointer to after result
+        self.data = self.data[struct.calcsize("<H"):]
+
+        return AnalyzerFrame('hci_isdap_response', start_time, end_time, {
+            'packet_type': "HCI-ISDAP Response",
+            'operation': self.get_opcode_string(self.opcode),
+            'isdap_opcode': self.opcode,
+            'isdap_length': self.length,
+            'isdap_result': "success" if result == 0 else result,
+            'data': self.data,
         })
 
 
@@ -772,15 +871,13 @@ class BM64TXPacket(Packet):
 PACKETS = {
     0x00: BM64TXPacket,  # A bm64 package with wakeup b'0x00
     0x01: HCICommandPacket,
-    0x02: HCIISDAPFlashPacket,
+    0x02: HCIISDAPPacket,
     0x04: HCIEventPacket,
     0xAA: BM64RXPacket,
 }
 
 
 # High level analyzers must subclass the HighLevelAnalyzer class.
-
-
 class Hla(HighLevelAnalyzer):
 
     result_types = {
@@ -795,6 +892,15 @@ class Hla(HighLevelAnalyzer):
         },
         'hci_isdap': {
             'format': '{{data.packet_type}} (\'{{data.operation}}\', isdap_length=[{{data.isdap_length}}], isdap_result=\'{{data.isdap_result}})\''
+        },
+        'hci_isdap_write_memory': {
+            'format': '{{data.packet_type}} (\'{{data.operation}}\', continue:\'{{data.write_continue_flag}}\', data_length=[{{data.data_length}}])\''
+        },
+        'hci_isdap_response': {
+            'format': '{{data.packet_type}} (\'{{data.operation}}\', isdap_result=\'{{data.isdap_result}}, isdap_length=[{{data.isdap_length}}])\''
+        },
+        'hci_isdap_write_continue_memory': {
+            'format': '{{data.packet_type}} (\'{{data.operation}}\', continue:\'{{data.write_continue_flag}}\', data_length=[{{data.data_length}}]})\''
         },
     }
 
@@ -841,9 +947,16 @@ class Hla(HighLevelAnalyzer):
             if not packet_class:
                 self._last_byte = data
                 return AnalyzerFrame('unknown', frame.start_time, frame.end_time, {})
-            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel is None and packet_class == HCIEventPacket:
+            elif self.Channel_Configuration == 'Autodetect' \
+                    and self.rx_channel is None \
+                    and packet_class == HCIEventPacket:
+
                 self.rx_channel = True
-            elif self.Channel_Configuration == 'Autodetect' and self.rx_channel is None and packet_class == BM64TXPacket:
+
+            elif self.Channel_Configuration == 'Autodetect' \
+                    and self.rx_channel is None \
+                    and packet_class == BM64TXPacket:
+
                 self.rx_channel = True
 
             self._start_time = frame.start_time
